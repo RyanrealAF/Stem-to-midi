@@ -1,0 +1,68 @@
+name: Publish to Hugging Face
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write  # required so the job can request an OIDC token
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install --upgrade "huggingface_hub>=1.18.0"
+
+      - name: Exchange GitHub OIDC token for a Hub token
+        run: |
+          set -euo pipefail
+
+          # The HF repo to publish to. For non-model repos, prefix accordingly:
+          #   datasets/acme/awesome-dataset, spaces/acme/awesome-space, kernels/acme/awesome-kernel
+          RESOURCE="acme/awesome-model"
+
+          ID_TOKEN=$(curl -sSf \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://huggingface.co" \
+            | jq -r .value)
+
+          HEADERS=$(mktemp); BODY=$(mktemp)
+          STATUS=$(curl -sS -D "$HEADERS" -o "$BODY" -w '%{http_code}' \
+            -X POST "https://huggingface.co/oauth/token" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg t "$ID_TOKEN" --arg r "$RESOURCE" \
+                  '{
+                    grant_type:         "urn:ietf:params:oauth:grant-type:token-exchange",
+                    subject_token_type: "urn:ietf:params:oauth:token-type:id_token",
+                    subject_token:      $t,
+                    resource:           $r
+                  }')")
+
+          if [ "$STATUS" -ne 200 ]; then
+            REQUEST_ID=$(grep -i '^x-request-id:' "$HEADERS" | sed 's/.*: *//' | tr -d '\r')
+            echo "::error::Token exchange failed with HTTP $STATUS (x-request-id: ${REQUEST_ID:-unknown})"
+            cat "$BODY"
+            exit 1
+          fi
+
+          HF_TOKEN=$(jq -r .access_token "$BODY")
+          echo "::add-mask::$HF_TOKEN"
+          # Safe way to write to env
+          DELIM="EOF_$(openssl rand -hex 16)"
+          {
+            echo "HF_TOKEN<<$DELIM"
+            echo "$HF_TOKEN"
+            echo "$DELIM"
+          } >> "$GITHUB_ENV"
+
+      - name: Upload checkpoint
+        run: |
+          hf upload acme/awesome-model ./checkpoint . \
+            --commit-message "Publish from ${GITHUB_SHA::7}"
