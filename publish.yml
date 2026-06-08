@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.10"
       - run: pip install --upgrade "huggingface_hub>=1.18.0"
 
       - name: Exchange GitHub OIDC token for a Hub token
@@ -26,7 +26,7 @@ jobs:
 
           # The HF repo to publish to. For non-model repos, prefix accordingly:
           #   datasets/acme/awesome-dataset, spaces/acme/awesome-space, kernels/acme/awesome-kernel
-          RESOURCE="acme/awesome-model"
+          RESOURCE="spaces/RyanrealAF/stem-to-midi"
 
           ID_TOKEN=$(curl -sSf \
             -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
@@ -34,19 +34,19 @@ jobs:
             | jq -r .value)
 
           HEADERS=$(mktemp); BODY=$(mktemp)
-          STATUS=$(curl -sS -D "$HEADERS" -o "$BODY" -w '%{http_code}' \
+          STATUS=$(curl -sS -D "$HEADERS" -o "$BODY" -w \'%{http_code}\' \
             -X POST "https://huggingface.co/oauth/token" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg t "$ID_TOKEN" --arg r "$RESOURCE" \
-                  '{
+                  \'{
                     grant_type:         "urn:ietf:params:oauth:grant-type:token-exchange",
                     subject_token_type: "urn:ietf:params:oauth:token-type:id_token",
                     subject_token:      $t,
                     resource:           $r
-                  }')")
+                  }\')")
 
           if [ "$STATUS" -ne 200 ]; then
-            REQUEST_ID=$(grep -i '^x-request-id:' "$HEADERS" | sed 's/.*: *//' | tr -d '\r')
+            REQUEST_ID=$(grep -i \'^x-request-id:\' "$HEADERS" | sed \'s/.*: *//\' | tr -d \'\\r\')
             echo "::error::Token exchange failed with HTTP $STATUS (x-request-id: ${REQUEST_ID:-unknown})"
             cat "$BODY"
             exit 1
@@ -62,7 +62,6 @@ jobs:
             echo "$DELIM"
           } >> "$GITHUB_ENV"
 
-      - name: Upload checkpoint
+      - name: Upload to Hugging Face Hub
         run: |
-          hf upload acme/awesome-model ./checkpoint . \
-            --commit-message "Publish from ${GITHUB_SHA::7}"
+          hf upload RyanrealAF/stem-to-midi . . --repo-type=space --commit-message "Publish from ${GITHUB_SHA::7}"
