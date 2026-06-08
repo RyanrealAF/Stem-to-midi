@@ -1,0 +1,12 @@
+basic-pitch==0.3.6
+demucs==4.0.1
+gradio==4.44.1
+numpy>=1.23.0,<2.0
+soundfile>=0.12.1
+torch>=2.1.0
+torchaudio>=2.1.0
+scipy>=1.10.0
+resampy>=0.4.2
+librosa>=0.10.0
+pretty_midi>=0.2.10
+mir_eval>=0.7
