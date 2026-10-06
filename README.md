@@ -1,4 +1,3 @@
-its not pushing to hugging face 
 ---
 title: SongToMIDI
 emoji: 🎵
@@ -13,7 +12,7 @@ pinned: false
 
 # SongToMIDI
 
-Converts a full mixed song into **4 individual MIDI files** — one per stem.
+Converts a full mixed song into **4 individual MIDI files** — one per stem — with **audio verification**.
 
 ## Pipeline
 
@@ -28,38 +27,36 @@ Demucs htdemucs (stem separation)
     └── other.wav
          │
          ▼ (per-stem)
-Basic-Pitch MIDI Transcription
-(stem-tuned onset/frame/frequency thresholds)
-    ├── vocals.mid
-    ├── drums.mid
-    ├── bass.mid
-    └── other.mid
-         │
-         ▼
-ZIP bundle download
+    ┌─────────────┐
+    │   ANALYZE   │  BPM, key, pitch range, energy, onset density
+    └──────┬──────┘
+           ▼
+    ┌─────────────┐
+    │ TRANSCRIBE  │  Basic-Pitch with adaptive parameters
+    └──────┬──────┘  (tuned from analysis)
+           ▼
+    ┌─────────────┐
+    │   VERIFY    │  Synthesize MIDI → compare chroma + onsets
+    └──────┬──────┘  vs original stem audio
+           │
+     score < 0.65? ──→ retry with more sensitive params (max 3)
+           │
+           ▼
+    Best-scoring MIDI kept + verification report
 ```
 
-## Stem-specific tuning
+## Verification
 
-| Stem | Freq Range | Notes |
-|------|-----------|-------|
-| Vocals | 80–1100 Hz | Melodia trick on; monophonic bias |
-| Drums | 30–8000 Hz | Low onset threshold; no melodia |
-| Bass | 30–300 Hz | Low-frequency locked |
-| Other | 40–4000 Hz | Multi-pitch-bends; chord-aware |
+Each MIDI is synthesized back to audio and compared against its source stem:
+- **Pitch score**: chroma feature correlation (0-1)
+- **Timing score**: onset envelope correlation (0-1)
+- **Combined**: 0.6×pitch + 0.4×timing
 
-## Hardware
+If below 0.65, transcription retries with adjusted thresholds. The UI shows
+per-stem scores and a downloadable verification report.
 
-Runs on **T4 GPU** (recommended). CPU fallback works but expect 3–5× longer processing.
+## Outputs
 
-## Limitations
-
-- Drum MIDI uses pitched notes — requires General MIDI drum channel remapping in your DAW
-- Polyphonic guitar/piano accuracy depends on arrangement density
-- Very busy mixes may produce note density artifacts in `other.mid`
-- Max recommended file: ~6 minutes / 100MB
-
-## Built with
-
-- [Demucs](https://github.com/facebookresearch/demucs) — htdemucs model
-- [Basic-Pitch](https://github.com/spotify/basic-pitch) — Spotify ICASSP 2022 model
+- `vocals.mid`, `drums.mid`, `bass.mid`, `other.mid`
+- `{track}_midi.zip` — all stems bundled
+- `verification_report.md` — per-stem analysis + scores
