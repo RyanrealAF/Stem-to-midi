@@ -26,7 +26,7 @@ jobs:
 
           # The HF repo to publish to. For non-model repos, prefix accordingly:
           #   datasets/acme/awesome-dataset, spaces/acme/awesome-space, kernels/acme/awesome-kernel
-          RESOURCE="spaces/RyanrealAF/stem-to-midi"
+          RESOURCE="spaces/Ryanrealaf/Stem-to-midi"
 
           ID_TOKEN=$(curl -sSf \
             -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
